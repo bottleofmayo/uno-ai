@@ -1,0 +1,3 @@
+--> Running on the GPU
+0 experiments/uno_dqn_result_large/model.pth -0.02
+1 experiments/uno_dqn_result_large2/model.pth 0.02

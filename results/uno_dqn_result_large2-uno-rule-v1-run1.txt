@@ -1,0 +1,3 @@
+--> Running on the GPU
+0 experiments/uno_dqn_result_large2/model.pth 0.047
+1 uno-rule-v1 -0.047
