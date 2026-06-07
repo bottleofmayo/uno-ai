@@ -1,6 +1,3 @@
-''' An example of training a Deep Monte-Carlo (DMC) Agent on the environments in RLCard
-Doesn't seem to work for Uno
-'''
 import os
 import argparse
 
