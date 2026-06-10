@@ -2,6 +2,7 @@ from pathlib import Path
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+import math
 
 df = pd.DataFrame({'P1': [], 'P2': [], 'P1 Score': [], 'P2 Score': []})
 
@@ -48,6 +49,16 @@ df['P1 Score'] = pd.to_numeric(df['P1 Score'], errors='coerce')
 df['P2 Score'] = pd.to_numeric(df['P2 Score'], errors='coerce')
 
 df.to_csv('outputs/data.csv')
+
+print(f"DQN mean: {df.loc[df['P1'] == 'DQN', 'P1 Score'].mean()}")
+print(f"NFSP mean: {df.loc[df['P1'] == 'NFSP', 'P1 Score'].mean()}")
+print(f"DMC mean: {df.loc[df['P1'] == 'DMC', 'P1 Score'].mean()}")
+print(f"DQN std: {df.loc[df['P1'] == 'DQN', 'P1 Score'].std()}")
+print(f"NFSP std: {df.loc[df['P1'] == 'NFSP', 'P1 Score'].std()}")
+print(f"DMC std: {df.loc[df['P1'] == 'DMC', 'P1 Score'].std()}")
+print(f"DQN std error: {df.loc[df['P1'] == 'DQN', 'P1 Score'].std()/math.sqrt(len(df.loc[df['P1'] == 'DQN', 'P1 Score']))}")
+print(f"NFSP std error: {df.loc[df['P1'] == 'NFSP', 'P1 Score'].std()/math.sqrt(len(df.loc[df['P1'] == 'NFSP', 'P1 Score']))}")
+print(f"DMC std error: {df.loc[df['P1'] == 'DMC', 'P1 Score'].std()/math.sqrt(len(df.loc[df['P1'] == 'DMC', 'P1 Score']))}")
 
 df_pivot = df.pivot_table(index='P1', columns="P2", values="P1 Score")
 df_pivot_se = df.pivot_table(index='P1', columns="P2", values="P1 Score", aggfunc='sem')
