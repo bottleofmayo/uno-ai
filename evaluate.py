@@ -7,16 +7,42 @@ from rlcard.agents import (
     RandomAgent,
 )
 from rlcard.utils import (
-    get_device,
     set_seed,
     tournament,
 )
+from dmc_device import resolve_torch_device
 
-def load_model(model_path, env=None, position=None, device=None):
+def move_agent_networks_to_device(agent, device):
+    if hasattr(agent, "net"):
+        agent.net.to(device)
+    if hasattr(agent, "policy_network"):
+        agent.policy_network.to(device)
+    if hasattr(agent, "q_estimator") and hasattr(agent.q_estimator, "qnet"):
+        agent.q_estimator.qnet.to(device)
+        agent.q_estimator.device = device
+    if hasattr(agent, "target_estimator") and hasattr(agent.target_estimator, "qnet"):
+        agent.target_estimator.qnet.to(device)
+        agent.target_estimator.device = device
+    if hasattr(agent, "_rl_agent"):
+        move_agent_networks_to_device(agent._rl_agent, device)
+
+
+def load_model(model_path, env=None, position=None, device="cpu"):
     if os.path.isfile(model_path):  # Torch model
         import torch
-        agent = torch.load(model_path, map_location=device, weights_only=False)
-        agent.set_device(device)
+        loaded = torch.load(model_path, map_location="cpu", weights_only=False)
+        if isinstance(loaded, list):
+            if position is None:
+                raise ValueError(f"Model at {model_path} contains multiple agents; position is required")
+            agent = loaded[position]
+        else:
+            agent = loaded
+        if hasattr(agent, "net"):
+            agent.device = device
+            agent.net.to(device)
+        elif hasattr(agent, "set_device"):
+            agent.set_device(device)
+            move_agent_networks_to_device(agent, device)
     elif os.path.isdir(model_path):  # CFR model
         from rlcard.agents import CFRAgent
         agent = CFRAgent(env, model_path)
@@ -32,8 +58,7 @@ def load_model(model_path, env=None, position=None, device=None):
 
 def evaluate(args):
 
-    # Check whether gpu is available
-    device = get_device()
+    device = resolve_torch_device(args.cuda)
 
     # Seed numpy, torch, random
     set_seed(args.seed)

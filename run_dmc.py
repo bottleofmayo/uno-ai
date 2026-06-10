@@ -1,46 +1,22 @@
-import glob
 import os
-import re
 import argparse
 
 import torch
 
+from dmc_device import apply_dmc_device_patches, resolve_training_device
+from dmc_eval import apply_dmc_eval_patch, clone_agents_for_eval
+
+apply_dmc_device_patches()
+apply_dmc_eval_patch()
+
 import rlcard
 from rlcard.agents.dmc_agent import DMCTrainer
-from rlcard.utils import get_device, set_seed, tournament, Logger, plot_curve
-
-def _checkpoint_snapshots(log_dir, num_players):
-    snapshots = {}
-    for path in glob.glob(os.path.join(log_dir, '*.pth')):
-        basename = os.path.basename(path)
-        match = re.fullmatch(r'(\d+)_(\d+)\.pth', basename)
-        if not match:
-            continue
-        position = int(match.group(1))
-        frames = int(match.group(2))
-        snapshots.setdefault(frames, {})[position] = path
-
-    valid_snapshots = {}
-    for frames, files in snapshots.items():
-        if len(files) == num_players:
-            valid_snapshots[frames] = [files[pos] for pos in sorted(files)]
-    return dict(sorted(valid_snapshots.items()))
-
-
-def _load_dmc_agents(paths):
-    agents = []
-    for path in paths:
-        agent = torch.load(path, map_location='cpu')
-        if hasattr(agent, 'net'):
-            agent.device = 'cpu'
-            agent.net.to('cpu')
-        agents.append(agent)
-    return agents
+from rlcard.utils import set_seed, Logger, plot_curve
 
 
 def train(args):
 
-    device = get_device()
+    args.training_device = resolve_training_device(args.cuda, args.training_device)
     set_seed(args.seed)
 
     if args.log_dir:
@@ -80,35 +56,35 @@ def train(args):
 
     print(
         f"Training DMC: env={args.env}, xpid={args.xpid}, savedir={args.savedir}, "
-        f"seed={args.seed}, num_episodes={args.num_episodes}, total_frames={args.total_frames}"
+        f"seed={args.seed}, num_episodes={args.num_episodes}, total_frames={args.total_frames}, "
+        f"evaluate_every={args.evaluate_every}"
     )
-    trainer.start()
 
     with Logger(args.log_dir) as logger:
+        trainer._eval_config = {
+            "env_name": args.env,
+            "seed": args.seed,
+            "evaluate_every": args.evaluate_every,
+            "frames_per_episode": args.frames_per_episode,
+            "num_eval_games": args.num_eval_games,
+            "logger": logger,
+            "_next_eval_episode": args.evaluate_every,
+        }
         logger.log(
-            f"Evaluating DMC snapshots in {args.log_dir} for {args.num_eval_games} games."
+            f"Evaluating every {args.evaluate_every} episodes "
+            f"({args.num_eval_games} games per evaluation)."
         )
 
-        snapshots = _checkpoint_snapshots(args.log_dir, env.num_players)
-        if not snapshots:
-            logger.log('No DMC snapshots found for evaluation.')
-        else:
-            for frames, paths in snapshots.items():
-                eval_env = rlcard.make(args.env, config={'seed': args.seed})
-                agents = _load_dmc_agents(paths)
-                eval_env.set_agents(agents)
-                reward = tournament(eval_env, args.num_eval_games)[0]
-                episode = int(frames / args.frames_per_episode) if args.frames_per_episode else frames
-                logger.log_performance(episode, reward)
+        learner_model = trainer.start()
 
-            final_paths = list(snapshots.values())[-1]
-            final_agents = _load_dmc_agents(final_paths)
-            save_path = os.path.join(args.log_dir, 'model.pth')
-            torch.save(final_agents, save_path)
-            print('Model saved in', save_path)
+        if learner_model is not None:
+            save_path = os.path.join(args.log_dir, "model.pth")
+            torch.save(clone_agents_for_eval(learner_model), save_path)
+            print("Model saved in", save_path)
 
-    csv_path, fig_path = logger.csv_path, logger.fig_path
-    plot_curve(csv_path, fig_path, 'dmc')
+        csv_path, fig_path = logger.csv_path, logger.fig_path
+
+    plot_curve(csv_path, fig_path, "dmc")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("DMC example in RLCard")
@@ -175,7 +151,10 @@ if __name__ == '__main__':
         '--training_device',
         default="0",
         type=str,
-        help='The index of the GPU used for training models',
+        help=(
+            'Learner device: GPU index for CUDA, "mps" for Apple Silicon, '
+            '"cpu" for CPU-only, or "0" to auto-pick MPS/CUDA/CPU'
+        ),
     )
     parser.add_argument(
         '--seed',
@@ -205,7 +184,7 @@ if __name__ == '__main__':
         '--evaluate_every',
         type=int,
         default=100,
-        help='Evaluation interval in episodes (for compatibility)',
+        help='Evaluate every N episodes during training',
     )
     parser.add_argument(
         '--num_eval_games',

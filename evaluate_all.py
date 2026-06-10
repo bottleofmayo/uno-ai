@@ -8,7 +8,9 @@ models = [
     'experiments/uno_dqn_result_large/model.pth',
     'experiments/uno_dqn_result_large2/model.pth',
     'experiments/uno_nfsp_result_large/model.pth',
-    'experiments/uno_nfsp_result_large2/model.pth'
+    'experiments/uno_nfsp_result_large2/model.pth',
+    'experiments/uno_dmc_result_large/model.pth',
+    'experiments/uno_dmc_result_large2/model.pth',
 ]
 
 def evaluate(model1, model2, seed):
@@ -20,13 +22,16 @@ def evaluate(model1, model2, seed):
     return file_path
 
 if __name__ == '__main__':  
+    counter = 0
     tasks = []
-    large2_indices = [3, 5]  # Indices of large2 models
     for seed in range(1, 11):  # 10 runs
         for i in range(len(models)):
             for j in range(len(models)):
-                # Only run if at least one model is large2
-                if i in large2_indices or j in large2_indices:
-                    tasks.append(delayed(evaluate)(models[i], models[j], seed))
+                file_path = Path(f"results/{models[i].replace('experiments/','').replace('/model.pth','')}-{models[j].replace('experiments/','').replace('/model.pth','')}-run{seed}.txt")
+                if not file_path.is_file() or not file_path.read_text().strip():
+                    print(file_path)
+                    counter += 1
+                    tasks.append(delayed(evaluate)(models[i], models[j], seed)) 
+    print(f"Total evaluations needed: {counter}")    
     
     Parallel(n_jobs=-1)(tasks)

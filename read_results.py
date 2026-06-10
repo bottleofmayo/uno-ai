@@ -5,6 +5,17 @@ import matplotlib.pyplot as plt
 
 df = pd.DataFrame({'P1': [], 'P2': [], 'P1 Score': [], 'P2 Score': []})
 
+replacements = {
+    "experiments/uno_dqn_result_large/model.pth": "DQN",
+    "experiments/uno_dqn_result_large2/model.pth": "DQN",
+    "experiments/uno_nfsp_result_large/model.pth": "NFSP",
+    "experiments/uno_nfsp_result_large2/model.pth": "NFSP",
+    "experiments/uno_dmc_result_large/model.pth": "DMC",
+    "experiments/uno_dmc_result_large2/model.pth": "DMC",
+    "random": "Random",
+    "uno-rule-v1": "Rule Model"
+}
+
 for file in Path('./results').iterdir():
     if file.is_file() and file.name != ".DS_Store":
         try:
@@ -13,11 +24,25 @@ for file in Path('./results').iterdir():
             print("Error decoding in file:" + str(file))
             
         else:
-            p1_name = lines[1].split()[1].replace("experiments/uno_dqn_result_large/model.pth", "DQN").replace("experiments/uno_dqn_result_large2/model.pth", "DQN").replace("experiments/uno_nfsp_result_large/model.pth", "NFSP").replace("experiments/uno_nfsp_result_large2/model.pth", "NFSP").replace("random", "Random").replace("uno-rule-v1", "Rule Model")
-            p2_name = lines[2].split()[1].replace("experiments/uno_dqn_result_large/model.pth", "DQN").replace("experiments/uno_dqn_result_large2/model.pth", "DQN").replace("experiments/uno_nfsp_result_large/model.pth", "NFSP").replace("experiments/uno_nfsp_result_large2/model.pth", "NFSP").replace("random", "Random").replace("uno-rule-v1", "Rule Model")
-            p1_score = lines[1].split()[-1]
-            p2_score = lines[2].split()[-1]
-            df.loc[len(df)] = [p1_name, p2_name, p1_score, p2_score]
+            if len(lines) == 0:
+                print("Empty file:" + str(file))
+            else:
+                offset = 0
+                if len(lines) == 2:
+                    print("File with only 2 lines:" + str(file))
+                    offset = -1
+                try:
+                    p1_name = lines[1 + offset].split()[1]
+                    p1_name = replacements.get(p1_name, p1_name)
+                    p2_name = lines[2 + offset].split()[1]
+                    p2_name = replacements.get(p2_name, p2_name)
+                    p1_score = lines[1 + offset].split()[-1]
+                    p2_score = lines[2 + offset].split()[-1]
+                    df.loc[len(df)] = [p1_name, p2_name, p1_score, p2_score]
+                except IndexError as e:
+                    print("Error parsing file:" + str(file))
+                    print("File content:")
+                    print(lines)
 
 df['P1 Score'] = pd.to_numeric(df['P1 Score'], errors='coerce')                
 df['P2 Score'] = pd.to_numeric(df['P2 Score'], errors='coerce')
